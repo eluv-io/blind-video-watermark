@@ -1,3 +1,5 @@
 **/.DS_Store
 **/__pycache__
 examples/output
+blind_video_watermark.egg-info
+dist

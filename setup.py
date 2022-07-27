@@ -1,12 +1,8 @@
 from setuptools import setup, find_packages
-from os import path as os_path
+from pathlib import Path
 
-this_directory = os_path.abspath(os_path.dirname(__file__))
-
-def read_file(filename):
-    with open(os_path.join(this_directory, filename), encoding='utf-8') as f:
-        long_description = f.read()
-    return long_description
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
 
 def read_requirements(filename):
     return [line.strip() for line in read_file(filename).splitlines()
@@ -14,10 +10,10 @@ def read_requirements(filename):
 
 setup(name='blind-video-watermark',
       python_requires='>=3.6',
-      version='0.1.0',
+      version='0.1.1',
       description='Blind Video Watermarking in Python',
-      # long_description=read_file('docs/en/README.md'),
-      # long_description_content_type="text/markdown",
+      long_description=long_description,
+      long_description_content_type='text/markdown',
       url='https://github.com/eluv-io/blind-video-watermark',
       author='Qingyuan Liu',
       author_email='pixelledliu@gmail.com',
