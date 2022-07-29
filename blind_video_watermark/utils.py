@@ -17,6 +17,10 @@ class ArnoldTransform:
             self.count += 1
         return self.img
 
+def generate_wm(key, shape):
+    wm = np.random.RandomState(key).randint(0, 2, (shape[0], shape[1]))
+    wm[wm == 0] = -1
+    return wm
 
 def randomize_channel(channel, key, blk_shape=(8, 8)):
     rows = channel.shape[0] // blk_shape[0] * blk_shape[0]
@@ -33,12 +37,10 @@ def randomize_channel(channel, key, blk_shape=(8, 8)):
     full_res[:rows, :cols] = res
     return full_res
 
-
 def randomize_img(img):
     for i in range(3):
         img[:, :, i] = randomize_channel(img[:, :, i])
     return img
-
 
 def derandomize_channel(channel, key, blk_shape=(8, 8)):
     rows = channel.shape[0] // blk_shape[0] * blk_shape[0]

@@ -3,3 +3,4 @@
 examples/output
 blind_video_watermark.egg-info
 dist
+build

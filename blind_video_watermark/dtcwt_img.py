@@ -230,7 +230,7 @@ class DtcwtImgDecoder:
         cv2.imwrite(output_path, wm)
         return wm
 
-    def extract_video(self, wmed_video_path, output_folder, verbose=True):
+    def extract_video(self, wmed_video_path, output_folder, ori_frame_size=(1080, 1920), verbose=True):
         wmed_cap = cv2.VideoCapture(wmed_video_path)
         count = 0
         length = int(wmed_cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -239,8 +239,8 @@ class DtcwtImgDecoder:
         while wmed_cap.isOpened():
             ret, wmed_frame = wmed_cap.read()
             if ret:
-                # wmed_frame = cv2.resize(
-                #     wmed_frame, (1920, 1080))
+                wmed_frame = cv2.resize(
+                    wmed_frame, (ori_frame_size[1], ori_frame_size[0]))
                 count += 1
                 wmed_frame = cv2.cvtColor(wmed_frame.astype(np.float32), cv2.COLOR_BGR2YUV)
                 if verbose:
