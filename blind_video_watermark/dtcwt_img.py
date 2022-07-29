@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 import time
 import multiprocessing
+import heapq
 
 from .utils import rebin, randomize_channel, derandomize_channel
 
@@ -73,16 +74,20 @@ class DtcwtImgEncoder:
         frame_size = (int(width), int(height))
         fourcc = cap.get(cv2.CAP_PROP_FOURCC)
         fps =  cap.get(cv2.CAP_PROP_FPS)
+        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
         out = cv2.VideoWriter(output_path, int(fourcc), fps, frame_size)
         self.prepare_wm(wm_path, (frame_size[1], frame_size[0]))
+
         count = 0
+        pbar = tqdm(total=length)
         while cap.isOpened():
             ret, frame = cap.read()
             if ret:
                 count += 1
                 frame = cv2.cvtColor(frame.astype(np.float32), cv2.COLOR_BGR2YUV)
                 if verbose:
-                    print("Start processing frame {}".format(count))
+                    pbar.update(1)
                 wmed_frame = self.encode(frame)
                 wmed_frame = cv2.cvtColor(wmed_frame, cv2.COLOR_YUV2BGR)
                 wmed_frame = np.clip(wmed_frame, a_min=0, a_max=255)
@@ -92,8 +97,8 @@ class DtcwtImgEncoder:
                     break
             else:
                 break
-        # cap.release()
-        # out.release()
+        cap.release()
+        out.release()
 
     def embed_video_async(self, wm_path, video_path, output_path, verbose=True):
         # Embed watermark into a video
@@ -114,29 +119,28 @@ class DtcwtImgEncoder:
         if verbose:
             rbar = tqdm(total=length, position=0)
             wbar = tqdm(total=length, position=1)
-            callback = lambda x: DtcwtImgEncoder.callback_verbose(x, out, wbar)
+            hp = []
+            heapq.heapify(hp)
+            out_counter = [0]
+            callback = lambda x: DtcwtImgEncoder.callback_verbose(x, out, hp, out_counter, wbar)
         else:
             callback = lambda x: DtcwtImgEncoder.callback(x, out)
         while cap.isOpened():
             ret, frame = cap.read()
             if ret:
-                count += 1
-                frame = cv2.cvtColor(frame.astype(np.float32), cv2.COLOR_BGR2YUV)
                 if verbose:
-                    # print("Start processing frame {}".format(count))
                     rbar.update(1)
-                future = pool.apply_async(DtcwtImgEncoder.encode_async, args=(frame, self.wm, self.alpha, self.step), callback=callback)
-                # encode(frame, self.wm, self.alpha, self.step)
+                future = pool.apply_async(DtcwtImgEncoder.encode_async, args=(frame, self.wm, self.alpha, self.step, count), callback=callback)
                 futures.append(future)
-                
+                count += 1
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
             else:
                 break
         for future in futures:
             future.wait()
-        # cap.release()
-        # out.release()
+        cap.release()
+        out.release()
 
     def infer_wm_shape(self, img_shape):
         w = (((img_shape[0] + 1) // 2 + 1) // 2 + 1) // 2
@@ -147,8 +151,9 @@ class DtcwtImgEncoder:
             h += 1
         return (w, h)
 
-    def encode_async(img, wm, alpha, step):
+    def encode_async(img, wm, alpha, step, count):
         # img is in YUV
+        img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_BGR2YUV)
         wm_transform = dtcwt.Transform2d()
         wm_coeffs = wm_transform.forward(wm, nlevels=1)
         img_transform = dtcwt.Transform2d()
@@ -176,14 +181,25 @@ class DtcwtImgEncoder:
         img = cv2.cvtColor(img, cv2.COLOR_YUV2BGR)
         img = np.clip(img, a_min=0, a_max=255)
         img = np.around(img).astype(np.uint8)
-        return img
+        return count, img
 
     def callback(x, out):
         out.write(x)
 
-    def callback_verbose(x, out, wbar):
-        wbar.update(1)
-        out.write(x)
+    def callback_verbose(x, out, hp, out_counter, wbar):
+        # Synchronization
+        if x[0] != out_counter[0]:
+            heapq.heappush(hp, x)
+            return
+        else:
+            out.write(x[1])
+            wbar.update(1)
+            out_counter[0] += 1
+            while len(hp) != 0 and hp[0][0] == out_counter[0]:
+                c, frame = heapq.heappop(hp)
+                out.write(frame)
+                wbar.update(1)
+                out_counter[0] += 1
 
 class DtcwtImgDecoder:
 
@@ -253,3 +269,4 @@ class DtcwtImgDecoder:
                     break
             else:
                 break
+        wmed_cap.release()

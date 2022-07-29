@@ -5,6 +5,8 @@ from scipy.signal import correlate2d
 from tqdm import tqdm
 
 import time
+import multiprocessing
+import heapq
 
 from .utils import rebin, generate_wm
 
@@ -89,6 +91,97 @@ class DtcwtKeyEncoder:
                 break
         # out.release()
         # cap.release()
+
+    def embed_video_async(self, keys, seq, frag_length, video_path, output_path):
+        cap = cv2.VideoCapture(video_path)
+        width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        frame_size = (int(width), int(height))
+        fourcc = cap.get(cv2.CAP_PROP_FOURCC)
+        fps =  cap.get(cv2.CAP_PROP_FPS)
+        length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # Prepare watermarks
+        wm_shape = self.infer_wm_shape((frame_size[1], frame_size[0]))
+        wms = [generate_wm(key, wm_shape) for key in keys]
+
+        frag_frames = fps * frag_length
+        out = cv2.VideoWriter(output_path, int(fourcc), fps, frame_size)
+
+        pool = multiprocessing.Pool()
+        count = 0
+        futures = []
+        rbar = tqdm(total=length, position=0)
+        wbar = tqdm(total=length, position=1)
+        hp = []
+        heapq.heapify(hp)
+        out_counter = [0]
+        callback = lambda x: DtcwtKeyEncoder.callback_verbose(x, out, hp, out_counter, wbar)
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if ret:
+                frag_idx = int((count // frag_frames) % len(seq))
+                idx = int(seq[frag_idx])
+                rbar.update(1)
+                future = pool.apply_async(DtcwtKeyEncoder.encode_async, args=(frame, wms[idx], self.alpha, self.step, count), callback=callback)
+                futures.append(future)
+                count += 1
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                break
+        for future in futures:
+            future.wait()
+        out.release()
+        cap.release()
+
+    def encode_async(img, wm, alpha, step, count):
+        img = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_BGR2YUV)
+        wm_transform = dtcwt.Transform2d()
+        wm_coeffs = wm_transform.forward(wm, nlevels=1)
+        img_transform = dtcwt.Transform2d()
+        img_coeffs = img_transform.forward(img[:, :, 1], nlevels=3)
+        y_transform = dtcwt.Transform2d()
+        y_coeffs = y_transform.forward(img[:, :, 0], nlevels=3)
+
+        # Masks for level 3 subbands
+        masks3 = [0 for i in range(6)]
+        shape3 = y_coeffs.highpasses[2][:, :, 0].shape
+        for i in range(6):
+            masks3[i] = cv2.filter2D(np.abs(y_coeffs.highpasses[1][:,:,i]), -1, np.array([[1/4, 1/4], [1/4, 1/4]]))
+            masks3[i] = np.ceil(rebin(masks3[i], shape3) / step)
+        for i in range(6):
+            coeff = wm_coeffs.highpasses[0][:, :, i]
+            h, w = coeff.shape
+            coeffs = np.zeros(masks3[i].shape, dtype='complex_')
+            coeffs[:h, :w] = coeff
+            coeffs[-h:, :w] = coeff
+            coeffs[:h, -w:] = coeff
+            coeffs[-h:, -w:] = coeff
+            img_coeffs.highpasses[2][:, :, i] += alpha * (masks3[i] * coeffs)
+        img[:, :, 1] = img_transform.inverse(img_coeffs)
+        img = cv2.cvtColor(img, cv2.COLOR_YUV2BGR)
+        img = np.clip(img, a_min=0, a_max=255)
+        img = np.around(img).astype(np.uint8)
+        return count, img
+
+    def callback(x, out):
+        out.write(x)
+
+    def callback_verbose(x, out, hp, out_counter, wbar):
+        # Synchronization
+        if x[0] != out_counter[0]:
+            heapq.heappush(hp, x)
+            return
+        else:
+            out.write(x[1])
+            wbar.update(1)
+            out_counter[0] += 1
+            while len(hp) != 0 and hp[0][0] == out_counter[0]:
+                c, frame = heapq.heappop(hp)
+                out.write(frame)
+                wbar.update(1)
+                out_counter[0] += 1
 
     def infer_wm_shape(self, img_shape):
         w = (((img_shape[0] + 1) // 2 + 1) // 2 + 1) // 2
