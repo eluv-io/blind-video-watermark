@@ -14,10 +14,10 @@ if __name__ == "__main__":
 
     # Watermark video by keys following the sequence
     keys = [10, 11, 12, 13]
-    seq = "0102"
+    seq = "0231"
     video_path = "videos/bbb-short.mp4"
     output_path = "output/output.mp4"
-    bvw.DtcwtKeyEncoder().embed_video_async(keys, seq, 1, video_path, output_path)
+    bvw.DtcwtKeyEncoder().embed_video_async(keys, seq, 1, video_path, output_path, threads=8)
 
     # Detect watermarked sequence
     seq = bvw.DtcwtKeyDecoder().detect_video(keys, 1, output_path)

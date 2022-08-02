@@ -10,10 +10,12 @@ import heapq
 
 from .utils import rebin, generate_wm
 
+default_scale = 7.0
+
 class DtcwtKeyEncoder:
 
-    def __init__(self, alpha=7, step=5):
-        self.alpha = alpha
+    def __init__(self, str=1.0, step=5.0):
+        self.alpha = default_scale * str
         self.step = step
 
     def encode(self, img):
@@ -89,10 +91,10 @@ class DtcwtKeyEncoder:
                     break
             else:
                 break
-        # out.release()
-        # cap.release()
+        out.release()
+        cap.release()
 
-    def embed_video_async(self, keys, seq, frag_length, video_path, output_path):
+    def embed_video_async(self, keys, seq, frag_length, video_path, output_path, threads=None):
         cap = cv2.VideoCapture(video_path)
         width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -108,7 +110,7 @@ class DtcwtKeyEncoder:
         frag_frames = fps * frag_length
         out = cv2.VideoWriter(output_path, int(fourcc), fps, frame_size)
 
-        pool = multiprocessing.Pool()
+        pool = multiprocessing.Pool(threads)
         count = 0
         futures = []
         rbar = tqdm(total=length, position=0)
@@ -116,7 +118,7 @@ class DtcwtKeyEncoder:
         hp = []
         heapq.heapify(hp)
         out_counter = [0]
-        callback = lambda x: DtcwtKeyEncoder.callback_verbose(x, out, hp, out_counter, wbar)
+        callback = lambda x: DtcwtKeyEncoder.callback(x, out, hp, out_counter, wbar)
         while cap.isOpened():
             ret, frame = cap.read()
             if ret:
@@ -165,10 +167,7 @@ class DtcwtKeyEncoder:
         img = np.around(img).astype(np.uint8)
         return count, img
 
-    def callback(x, out):
-        out.write(x)
-
-    def callback_verbose(x, out, hp, out_counter, wbar):
+    def callback(x, out, hp, out_counter, wbar):
         # Synchronization
         if x[0] != out_counter[0]:
             heapq.heappush(hp, x)
@@ -194,8 +193,8 @@ class DtcwtKeyEncoder:
 
 class DtcwtKeyDecoder:
 
-    def __init__(self, alpha=7, step=5):
-        self.alpha = alpha
+    def __init__(self, str=1.0, step=5.0):
+        self.alpha = default_scale * str
         self.step = step
 
     def decode(self, wmed_img):

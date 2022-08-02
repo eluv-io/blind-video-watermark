@@ -9,11 +9,13 @@ import heapq
 
 from .utils import rebin, randomize_channel, derandomize_channel
 
+default_scale = 1.5
+
 class DtcwtImgEncoder:
 
-    def __init__(self, key=0, alpha=1.5, step=5, blk_shape=(35, 30)):
+    def __init__(self, key=0, str=1.0, step=5.0, blk_shape=(35, 30)):
         self.key = key
-        self.alpha = alpha
+        self.alpha = default_scale * str
         self.step = step
         self.blk_shape = blk_shape
 
@@ -66,7 +68,7 @@ class DtcwtImgEncoder:
         cv2.imwrite(output_path, wmed_img)
         return wmed_img
 
-    def embed_video(self, wm_path, video_path, output_path, verbose=True):
+    def embed_video(self, wm_path, video_path, output_path):
         # Embed watermark into a video
         cap = cv2.VideoCapture(video_path)
         width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -76,8 +78,8 @@ class DtcwtImgEncoder:
         fps =  cap.get(cv2.CAP_PROP_FPS)
         length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        out = cv2.VideoWriter(output_path, int(fourcc), fps, frame_size)
         self.prepare_wm(wm_path, (frame_size[1], frame_size[0]))
+        out = cv2.VideoWriter(output_path, int(fourcc), fps, frame_size)
 
         count = 0
         pbar = tqdm(total=length)
@@ -86,8 +88,7 @@ class DtcwtImgEncoder:
             if ret:
                 count += 1
                 frame = cv2.cvtColor(frame.astype(np.float32), cv2.COLOR_BGR2YUV)
-                if verbose:
-                    pbar.update(1)
+                pbar.update(1)
                 wmed_frame = self.encode(frame)
                 wmed_frame = cv2.cvtColor(wmed_frame, cv2.COLOR_YUV2BGR)
                 wmed_frame = np.clip(wmed_frame, a_min=0, a_max=255)
@@ -100,7 +101,7 @@ class DtcwtImgEncoder:
         cap.release()
         out.release()
 
-    def embed_video_async(self, wm_path, video_path, output_path, verbose=True):
+    def embed_video_async(self, wm_path, video_path, output_path, threads=None):
         # Embed watermark into a video
         cap = cv2.VideoCapture(video_path)
         width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -113,23 +114,21 @@ class DtcwtImgEncoder:
         out = cv2.VideoWriter(output_path, int(fourcc), fps, frame_size)
         self.prepare_wm(wm_path, (frame_size[1], frame_size[0]))
 
-        pool = multiprocessing.Pool()
+        pool = multiprocessing.Pool(threads)
+
         count = 0
         futures = []
-        if verbose:
-            rbar = tqdm(total=length, position=0)
-            wbar = tqdm(total=length, position=1)
-            hp = []
-            heapq.heapify(hp)
-            out_counter = [0]
-            callback = lambda x: DtcwtImgEncoder.callback_verbose(x, out, hp, out_counter, wbar)
-        else:
-            callback = lambda x: DtcwtImgEncoder.callback(x, out)
+        hp = []
+        heapq.heapify(hp)
+        out_counter = [0]
+        rbar = tqdm(total=length, position=0)
+        wbar = tqdm(total=length, position=1)
+        callback = lambda x: DtcwtImgEncoder.callback(x, out, hp, out_counter, wbar)
+
         while cap.isOpened():
             ret, frame = cap.read()
             if ret:
-                if verbose:
-                    rbar.update(1)
+                rbar.update(1)
                 future = pool.apply_async(DtcwtImgEncoder.encode_async, args=(frame, self.wm, self.alpha, self.step, count), callback=callback)
                 futures.append(future)
                 count += 1
@@ -183,10 +182,7 @@ class DtcwtImgEncoder:
         img = np.around(img).astype(np.uint8)
         return count, img
 
-    def callback(x, out):
-        out.write(x)
-
-    def callback_verbose(x, out, hp, out_counter, wbar):
+    def callback(x, out, hp, out_counter, wbar):
         # Synchronization
         if x[0] != out_counter[0]:
             heapq.heappush(hp, x)
@@ -203,9 +199,9 @@ class DtcwtImgEncoder:
 
 class DtcwtImgDecoder:
 
-    def __init__(self, key=0, alpha=1.5, step=5, blk_shape=(35, 30)):
+    def __init__(self, key=0, str=1.0, step=5.0, blk_shape=(35, 30)):
         self.key = key
-        self.alpha = alpha
+        self.alpha = default_scale * str
         self.step = step
         self.blk_shape = blk_shape
 
@@ -246,12 +242,11 @@ class DtcwtImgDecoder:
         cv2.imwrite(output_path, wm)
         return wm
 
-    def extract_video(self, wmed_video_path, output_folder, ori_frame_size=(1080, 1920), verbose=True):
+    def extract_video(self, wmed_video_path, output_folder, ori_frame_size=(1080, 1920)):
         wmed_cap = cv2.VideoCapture(wmed_video_path)
         count = 0
         length = int(wmed_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if verbose:
-            pbar = tqdm(total=length)
+        pbar = tqdm(total=length)
         while wmed_cap.isOpened():
             ret, wmed_frame = wmed_cap.read()
             if ret:
@@ -259,8 +254,7 @@ class DtcwtImgDecoder:
                     wmed_frame, (ori_frame_size[1], ori_frame_size[0]))
                 count += 1
                 wmed_frame = cv2.cvtColor(wmed_frame.astype(np.float32), cv2.COLOR_BGR2YUV)
-                if verbose:
-                    pbar.update(1)
+                pbar.update(1)
                 wm = self.decode(wmed_frame)
                 wm = derandomize_channel(wm, self.key, blk_shape=self.blk_shape)
                 cv2.imwrite(
