@@ -121,8 +121,8 @@ class DtcwtImgEncoder:
         hp = []
         heapq.heapify(hp)
         out_counter = [0]
-        rbar = tqdm(total=length, position=0)
-        wbar = tqdm(total=length, position=1)
+        rbar = tqdm(total=length, position=0, desc="Reading")
+        wbar = tqdm(total=length, position=1, desc="Writing")
         callback = lambda x: DtcwtImgEncoder.callback(x, out, hp, out_counter, wbar)
 
         while cap.isOpened():

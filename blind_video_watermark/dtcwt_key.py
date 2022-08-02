@@ -113,8 +113,8 @@ class DtcwtKeyEncoder:
         pool = multiprocessing.Pool(threads)
         count = 0
         futures = []
-        rbar = tqdm(total=length, position=0)
-        wbar = tqdm(total=length, position=1)
+        rbar = tqdm(total=length, position=0, desc="Reading:")
+        wbar = tqdm(total=length, position=1, desc="Writing:")
         hp = []
         heapq.heapify(hp)
         out_counter = [0]
