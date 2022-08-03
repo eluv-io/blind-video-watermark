@@ -1,4 +1,3 @@
-import time
 import blind_video_watermark as bvw
 
 if __name__ == "__main__":
@@ -11,11 +10,20 @@ if __name__ == "__main__":
     bvw.DtcwtImgDecoder().extract(output_path, extracted_path)
 
     # Watermark a video
-    # wm_path = "wms/wm.jpg"
-    # video_path = "videos/bbb-short.mp4"
-    # output_path = "output/output.mp4"
-    # extracted_path = "output/extracted"
-    # start = time.time()
-    # bvw.DtcwtImgEncoder().embed_video_async(wm_path, video_path, output_path, threads=8)
-    # print(time.time() - start)
-    # bvw.DtcwtImgDecoder().extract_video(output_path, extracted_path)
+    wm_path = "wms/wm.jpg"
+    video_path = "videos/bbb-short.mp4"
+    output_path = "output/output.mp4"
+    extracted_folder = "output/extracted"
+
+    # # Use this if you want to keep the watermarked frame in memory
+    # # Check the source code of `embed` for details
+    # bvw.DtcwtImgEncoder().encode(IMG_IN_YUV)
+
+    # # Use this if you don't want multiprocessing
+    # bvw.DtcwtImgEncoder().embed_video(wm_path, video_path, output_path)
+
+    # Embedding with 8 processes
+    bvw.DtcwtImgEncoder().embed_video_async(wm_path, video_path, output_path, threads=8)
+
+    # Extract watermark frame by frame and save extractions in a folder
+    bvw.DtcwtImgDecoder().extract_video(output_path, extracted_folder)
