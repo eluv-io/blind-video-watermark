@@ -10,7 +10,7 @@ def read_requirements(filename):
 
 setup(name='blind-video-watermark',
       python_requires='>=3.6',
-      version='0.1.2',
+      version='0.1.3',
       description='Blind Video Watermarking in Python',
       long_description=long_description,
       long_description_content_type='text/markdown',

@@ -234,8 +234,9 @@ class DtcwtImgDecoder:
         wm = t.inverse(dtcwt.Pyramid(lowpass, highpasses))
         return wm
 
-    def extract(self, wmed_img_path, output_path):
+    def extract(self, wmed_img_path, output_path, ori_frame_size=(1080, 1920)):
         wmed_img = cv2.imread(wmed_img_path).astype(np.float32)
+        wmed_img = cv2.resize(wmed_img, (ori_frame_size[1], ori_frame_size[0]))
         wmed_img = cv2.cvtColor(wmed_img, cv2.COLOR_BGR2YUV)
         wm = self.decode(wmed_img)
         wm = derandomize_channel(wm, self.key, blk_shape=self.blk_shape)

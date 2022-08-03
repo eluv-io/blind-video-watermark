@@ -19,7 +19,7 @@ cd blind-video-watermark
 pip install .
 ```
 
-## Getting started
+## Getting Started
 
 1. The documentations are hosted on this repo's [Wiki Page](https://github.com/eluv-io/blind-video-watermark/wiki). Check this [page](https://github.com/eluv-io/blind-video-watermark/wiki/CLI) for examples and documentations of the command line interface.
 2. Play with the examples in `examples` directory. All sample videos, images and watermarks are included inside. Take a look at the [doc](https://github.com/eluv-io/blind-video-watermark/wiki/Lib) for various interfaces for developers.

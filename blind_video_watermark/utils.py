@@ -67,6 +67,11 @@ def derandomize_img(img):
         img[:, :, i] = derandomize_channel(img[:, :, i])
     return img
 
+def compute_psnr(img1, img2):
+    v = 0.
+    for i in range(3):
+        v += cv2.PSNR(img1[:,:,i], img2[:,:,i])
+    return v / 3.0
 
 def rebin(a, shape):
     if a.shape[0] % 2 == 1:
@@ -185,3 +190,10 @@ def compute_diff(vid1, vid2, output_path):
     out.release()
     cap1.release()
     cap2.release()
+
+if __name__ == "__main__":
+    from skimage.metrics import structural_similarity as ssim
+    img1 = cv2.imread("../examples/pics/frame63.jpeg")
+    img2 = cv2.imread("../examples/output/watermarked.jpeg")
+    v = ssim(img1, img2, data_range=img2.max() - img2.min(), channel_axis=2)
+    print(v)
