@@ -1,7 +1,7 @@
 # blind-video-watermark
 
 [![PyPI](https://img.shields.io/pypi/v/blind-video-watermark)](https://pypi.org/project/blind-video-watermark/)
-[![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/eluv-io/blind-video-watermark/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green)](https://github.com/eluv-io/blind-video-watermark/blob/main/LICENSE)
 
 Blind video watermarking with great invisibility and robustness.
 
