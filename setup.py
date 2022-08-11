@@ -10,7 +10,7 @@ def read_requirements(filename):
 
 setup(name='blind-video-watermark',
       python_requires='>=3.6',
-      version='0.1.3',
+      version='0.1.4',
       description='Blind Video Watermarking in Python',
       long_description=long_description,
       long_description_content_type='text/markdown',
@@ -20,7 +20,7 @@ setup(name='blind-video-watermark',
       license='MIT',
       packages=find_packages(),
       platforms=['linux', 'windows', 'macos'],
-      install_requires=['numpy', 'opencv-python', 'dtcwt', 'tqdm'],
+      install_requires=['numpy', 'opencv-python', 'dtcwt', 'tqdm', 'scipy'],
       entry_points= {
           'console_scripts': ['bvw = blind_video_watermark.client:main']
       }

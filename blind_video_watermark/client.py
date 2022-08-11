@@ -38,7 +38,7 @@ def main():
 			decoder.extract_video(args.input, args.output, ori_frame_size=size)
 		elif args.algo == "seq":
 			decoder = DtcwtKeyDecoder(str=args.str)
-			seq = decoder.detect_video(args.keys, args.len_segment, args.input, ori_frame_size=size)
+			seq = decoder.detect_video_async(args.keys, args.len_segment, args.input, ori_frame_size=size, threads=args.threads)
 			print("Decoded Sequence:", seq)
 			with open(args.output, 'w') as fd:
 				fd.write(str(seq))

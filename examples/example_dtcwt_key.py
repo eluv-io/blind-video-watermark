@@ -16,7 +16,6 @@ if __name__ == "__main__":
     # # Check the source code of `embed` for details
     # bvw.DtcwtKeyEncoder().encode(IMG_IN_YUV)
 
-
     # The video is divided into segments of frag_length.
     # Each segment is watermarked by a key from the keys list chosen by the number in seq
     # 0231 -> [0, 2, 3, 1] -> [10, 12, 13, 11]

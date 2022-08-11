@@ -10,7 +10,7 @@ import heapq
 
 from .utils import rebin, generate_wm
 
-default_scale = 7.0
+default_scale = 10.0
 
 class DtcwtKeyEncoder:
 
@@ -291,6 +291,86 @@ class DtcwtKeyDecoder:
             else:
                 seq += "#"
         return seq
+
+    def detect_video_async(self, keys, frag_length, wmed_video_path, ori_frame_size=(1080, 1920), threads=None, mode="fast"):
+        wmed_cap = cv2.VideoCapture(wmed_video_path)
+        fps = wmed_cap.get(cv2.CAP_PROP_FPS)
+        length = int(wmed_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frag_frames = int(frag_length * fps)
+
+        wm_shape = self.infer_wm_shape(ori_frame_size)
+        shape = wm_shape[0] * wm_shape[1]
+        corrs = np.zeros((len(keys), length))
+        wmks = [generate_wm(key, wm_shape) for key in keys]
+        nwmks = [(wmk - np.mean(wmk)) / np.std(wmk) for wmk in wmks]
+
+        pool = multiprocessing.Pool(threads)
+        count = 0
+        futures = []
+        rbar = tqdm(total=length, position=0, desc="Reading:")
+        wbar = tqdm(total=length, position=1, desc="Decoding:")
+        callback = lambda x: DtcwtKeyDecoder.callback(x, shape, nwmks, corrs, wbar)
+        while wmed_cap.isOpened():
+            ret, wmed_frame = wmed_cap.read()
+            if ret:
+                wmed_frame = cv2.resize(wmed_frame.astype(np.float32), (ori_frame_size[1], ori_frame_size[0]))
+                wmed_frame = cv2.cvtColor(wmed_frame, cv2.COLOR_BGR2YUV)
+                rbar.update(1)
+                future = pool.apply_async(DtcwtKeyDecoder.decode_async, args=(wmed_frame, self.alpha, self.step, count), callback=callback)
+                futures.append(future)
+                count += 1
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                break
+        for future in futures:
+            future.wait()
+        frag_nums = length // frag_frames
+        seq = ""
+        for i in range(frag_nums):
+            s = np.sum(corrs[:, frag_frames * i:frag_frames * (i + 1)], axis=1)
+            # print(s)
+            idx = np.argmax(s)
+            if s[idx] > 0.3:
+                seq += str(idx)
+            else:
+                seq += "#"
+        return seq
+
+    def decode_async(wmed_img, alpha, step, count):
+        wmed_transform = dtcwt.Transform2d()
+        wmed_coeffs = wmed_transform.forward(wmed_img[:, :, 1], nlevels=3)
+        y_transform = dtcwt.Transform2d()
+        y_coeffs = y_transform.forward(wmed_img[:, :, 0], nlevels=3)
+
+        masks3 = [0 for i in range(6)]
+        inv_masks3 = [0 for i in range(6)]
+        shape3 = y_coeffs.highpasses[2][:, :, 0].shape
+        for i in range(6):
+            masks3[i] = cv2.filter2D(np.abs(y_coeffs.highpasses[1][:,:,i]), -1, np.array([[1/4, 1/4], [1/4, 1/4]]))
+            masks3[i] = np.ceil(rebin(masks3[i], shape3) / step)
+            masks3[i][masks3[i] == 0] = 0.01
+            inv_masks3[i] = 1.0 / masks3[i]
+
+        shape = wmed_coeffs.highpasses[2][:,:,i].shape
+        h, w = (shape[0] + 1) // 2, (shape[1] + 1) // 2
+        coeffs = np.zeros((h, w, 6), dtype='complex_')
+        for i in range(6):
+            coeff = (wmed_coeffs.highpasses[2][:,:,i]) * inv_masks3[i] * 1 / alpha
+            coeffs[:,:,i] = coeff[:h, :w] + coeff[:h, -w:] + coeff[-h:, :w] + coeff[-h:, -w:]
+        highpasses = tuple([coeffs])
+        lowpass = np.zeros((h * 2, w * 2))
+        t = dtcwt.Transform2d()
+        wm = t.inverse(dtcwt.Pyramid(lowpass, highpasses))
+        return count, wm
+
+    def callback(x, shape, nwmks, corrs, wbar):
+        count, wm = x[0], x[1]
+        nwm = (wm - np.mean(wm)) / np.std(wm)
+        for i in range(len(nwmks)):
+            corr = np.sum(nwm * nwmks[i]) / shape
+            corrs[i, count] = corr
+        wbar.update(1)
 
     def infer_wm_shape(self, img_shape):
         w = (((img_shape[0] + 1) // 2 + 1) // 2 + 1) // 2
