@@ -31,5 +31,5 @@ if __name__ == "__main__":
     bvw.DtcwtKeyEncoder().embed_video_async(keys, seq, frag_length, video_path, output_path, threads=8)
 
     # Detect watermarked sequence
-    seq = bvw.DtcwtKeyDecoder().detect_video(keys, frag_length, output_path)
+    seq = bvw.DtcwtKeyDecoder().detect_video_async(keys, frag_length, output_path, threads=8)
     print("Decoded Sequence:", seq)
